@@ -1,0 +1,9 @@
+{
+  "name": "meal-tracker-neon",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Meal Tracker PWA with Neon/Postgres persistence on Vercel",
+  "dependencies": {
+    "@neondatabase/serverless": "^1.0.1"
+  }
+}
