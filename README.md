@@ -1,45 +1,91 @@
-# Meal Tracker — normalized Neon + Vercel
+# Meal Tracker
 
-This version stores the app data in separate Neon/Postgres tables instead of one JSON blob.
+Meal Tracker is a lightweight progressive web app for recording daily meals, tracking nutrition, and monitoring weight over time. It is designed around a fixed daily meal plan with main and alternative meal choices, plus support for additional custom meals.
 
-## Tables
+## What the app does
 
-- `app_users` — private app user key
-- `meal_plans` — Main / Alternative plan definitions and daily targets
-- `plan_meals` — the five meal slots for each plan
-- `plan_foods` — the foods and nutrition values belonging to each planned meal
-- `daily_logs` — one row per user per date
-- `daily_meal_choices` — which plan (Main/Alternative) was selected for each slot and its note
-- `daily_food_logs` — actual quantity and eaten/completed state for each planned food
-- `custom_meals` — saved additional meal definitions
-- `custom_meal_foods` — foods/nutrition inside saved additional meals
-- `daily_custom_meals` — additional meals added to a particular day
-- `daily_custom_food_logs` — actual quantities and eaten state for additional-meal foods
-- `weight_entries` — weight history
+- Tracks food eaten for each meal and records actual quantities.
+- Calculates calories, protein, carbohydrates, and fat from the recorded quantities.
+- Supports main and alternative options for each planned meal.
+- Allows users to mark foods as eaten and add optional meal notes.
+- Shows daily summaries, seven-day adherence, logging streaks, and history.
+- Records weight entries with notes and displays a weight trend.
+- Lets users create reusable additional meals and add them to a day's log.
+- Loads saved state when the app opens and persists changes when the user clicks **Save**.
 
-The API keeps the existing front end format, but translates it into these relational tables on save and rebuilds the front-end state on load.
+The Save button is disabled when there are no unsaved changes and becomes available after the user edits the log, weight entries, or custom meals.
 
-## Vercel environment variables
+## Architecture overview
 
-Set:
+```text
+Browser
+	index.html + styles.css + app.js
+			 |
+			 | GET /api/state
+			 | POST /api/state
+			 v
+Vercel serverless function
+	api/state.js
+			 |
+			 v
+Neon PostgreSQL
+	meal_tracker_state
+```
 
-- `DATABASE_URL` = your Neon connection string
-- `MEAL_TRACKER_USER_KEY` = a long random string for your private single-user app
+### Frontend
 
-Do not put `DATABASE_URL` in the browser or GitHub.
+- `index.html` contains the page structure and controls.
+- `styles.css` contains the responsive layout and visual styles.
+- `app.js` contains the meal plans, UI rendering, client-side state, change tracking, and Save interaction.
+- The frontend keeps the current application state in memory. It does not store the app state in browser `localStorage`.
 
-## Database
+### API
 
-Run `NEON-MIGRATION-NORMALIZED.sql` in Neon. The API also creates/repairs the schema and seeds the Main/Alternative plan definitions automatically, so the SQL migration is safe to run first.
+- `api/state.js` is a Vercel serverless function exposed at `/api/state`.
+- `GET /api/state` loads the saved state.
+- `POST /api/state` validates the top-level state shape and upserts the complete state document.
+- The API uses `@neondatabase/serverless` to connect to Neon.
 
-The two plan rows both use the app-wide daily target of **2,515 kcal / 186g protein / 328g carbs / 51g fat**. The Alternative plan's displayed screenshot totals are not used as a separate daily target.
+### Database
 
-## Existing data
+The app stores one JSON document per configured user key in the `meal_tracker_state` table:
 
-The current app previously stored everything in one `meal_tracker_state` JSON row. This normalized version does not depend on that table. If you already have important data in the old table, export/backup it before deploying this version; the new API will not automatically import that old JSON blob.
+- `user_key`: primary key for the app user or installation.
+- `state`: JSONB document containing `days`, `weights`, and `customMeals`.
+- `created_at` and `updated_at`: persistence timestamps.
 
-## Deploy
+The schema is defined in `NEON-MIGRATION.sql`. The API also creates the table if it does not already exist.
 
-Deploy the project root to Vercel. Vercel serves `index.html` and `/api/state.js` from the same deployment.
+## Configuration
 
-The app still auto-saves changes and the **Save to database** button forces an immediate save, but Neon now receives separate relational records rather than one large JSON state object.
+Copy `.env.example` to `.env.local` for local development and replace the placeholder values:
+
+```sh
+cp .env.example .env.local
+```
+
+The API reads these server-side environment variables from `process.env`:
+
+- `DATABASE_URL`: Neon PostgreSQL connection string.
+- `MEAL_TRACKER_USER_KEY`: optional stable identifier for this private single-user deployment. It defaults to `default`.
+
+Keep `DATABASE_URL` server-side. Do not place it in frontend code or commit `.env.local` to the repository. `.env` and `.env.*` files are ignored by Git except for the committed `.env.example` template.
+
+## Deployment
+
+Deploy the repository root to Vercel. In the Vercel project settings, add `DATABASE_URL` and `MEAL_TRACKER_USER_KEY` under **Settings > Environment Variables** for the environments where the app runs. Vercel injects those values into the `/api/state` serverless function at runtime.
+
+Vercel serves the static frontend and the `/api/state` serverless function from the same deployment. Before using the app, run the SQL in `NEON-MIGRATION.sql` if you want to create the table manually. The API can also create the table automatically on its first request.
+
+## Project files
+
+| Path | Purpose |
+| --- | --- |
+| `index.html` | Application markup |
+| `styles.css` | Responsive styles |
+| `app.js` | Client-side application logic |
+| `api/state.js` | Vercel API for loading and saving state |
+| `NEON-MIGRATION.sql` | Neon/Postgres table definition |
+| `manifest.webmanifest` | PWA metadata |
+| `service-worker.js` | Service worker registration and caching support |
+| `vercel.json` | Vercel project configuration |
