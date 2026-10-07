@@ -58,18 +58,24 @@ The schema is defined in `NEON-MIGRATION.sql`. The API also creates the table if
 
 ## Configuration
 
-Set these environment variables in Vercel:
+Copy `.env.example` to `.env.local` for local development and replace the placeholder values:
+
+```sh
+cp .env.example .env.local
+```
+
+The API reads these server-side environment variables from `process.env`:
 
 - `DATABASE_URL`: Neon PostgreSQL connection string.
 - `MEAL_TRACKER_USER_KEY`: optional stable identifier for this private single-user deployment. It defaults to `default`.
 
-Keep `DATABASE_URL` server-side. Do not place it in frontend code or commit it to the repository.
+Keep `DATABASE_URL` server-side. Do not place it in frontend code or commit `.env.local` to the repository. `.env` and `.env.*` files are ignored by Git except for the committed `.env.example` template.
 
 ## Deployment
 
-Deploy the repository root to Vercel. Vercel serves the static frontend and the `/api/state` serverless function from the same deployment.
+Deploy the repository root to Vercel. In the Vercel project settings, add `DATABASE_URL` and `MEAL_TRACKER_USER_KEY` under **Settings > Environment Variables** for the environments where the app runs. Vercel injects those values into the `/api/state` serverless function at runtime.
 
-Before using the app, configure the environment variables in the Vercel project and run the SQL in `NEON-MIGRATION.sql` if you want to create the table manually. The API can also create the table automatically on its first request.
+Vercel serves the static frontend and the `/api/state` serverless function from the same deployment. Before using the app, run the SQL in `NEON-MIGRATION.sql` if you want to create the table manually. The API can also create the table automatically on its first request.
 
 ## Project files
 

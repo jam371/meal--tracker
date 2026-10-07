@@ -44,21 +44,26 @@ function save(){
 }
 async function saveToDatabase(manual=false){
   const btn=$("saveDbBtn");
-  if(!hasUnsavedChanges||savePromise)return;
+  if(!hasUnsavedChanges&&!savePromise)return;
   if(btn&&manual){btn.disabled=true;btn.textContent="Saving…";}
-  if(savePromise) saveQueued=true;
-  else savePromise=(async()=>{
-    do{
-      saveQueued=false;
-      const res=await fetch("/api/state",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(db)});
-      const data=await res.json().catch(()=>({}));
-      if(!res.ok) throw new Error(data.error||"Database save failed");
-    }while(saveQueued);
-  })();
+  if(savePromise){
+    saveQueued=true;
+  }else{
+    savePromise=(async()=>{
+      do{
+        saveQueued=false;
+        const snapshot=JSON.stringify(db);
+        const res=await fetch("/api/state",{method:"POST",headers:{"Content-Type":"application/json"},body:snapshot});
+        const data=await res.json().catch(()=>({}));
+        if(!res.ok) throw new Error(data.error||"Database save failed");
+        hasUnsavedChanges=JSON.stringify(db)!==snapshot;
+        if(hasUnsavedChanges) saveQueued=true;
+      }while(saveQueued);
+    })();
+  }
   const pendingSave=savePromise;
   try{
     await pendingSave;
-    hasUnsavedChanges=false;
     if(btn&&manual){btn.textContent="Saved ✓";setTimeout(()=>{btn.textContent="Save";updateSaveButton()},1200)}
   }catch(err){
     console.error(err);
@@ -165,7 +170,7 @@ function amount(k,mi,fi,custom,v){let d=day();let f=(custom?d.custom[mi].foods:s
 function note(k,v){day().notes[k]=v;save()}
 function markAll(){let d=day();for(let mi=0;mi<5;mi++){let m=slotPlan(mi).meals[mi];m.foods.forEach((f,fi)=>{let k=foodKey(mi,fi);d.foods[k]={actual:d.foods[k]?.actual??f.amount,done:true}})}(d.custom||[]).forEach((m,mi)=>m.foods.forEach((f,fi)=>{let k=`c-${mi}-${fi}`;d.foods[k]={actual:d.foods[k]?.actual??f.amount,done:true}}));save();renderLog()}
 function resetDay(){if(!confirm("Reset this day's logged foods and notes?"))return;let d=day();d.foods={};d.notes={};save();renderLog()}
-$("date").onchange=async()=>{await loadFromDatabase();day();renderLog()}
+$("date").onchange=()=>{day();renderLog()}
 
 document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>{document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));document.querySelectorAll(".panel").forEach(x=>x.classList.remove("active"));b.classList.add("active");$(b.dataset.tab).classList.add("active");if(b.dataset.tab==="history")renderHistory();if(b.dataset.tab==="weight")renderWeight();if(b.dataset.tab==="meals")renderCustomMeals()});
 
